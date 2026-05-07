@@ -1,4 +1,10 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   fetchDashboard,
   fetchConfigStatus,
@@ -78,6 +84,10 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [reportBusy, setReportBusy] = useState(false);
+  const [instanceSearch, setInstanceSearch] = useState("");
+  /** Instance IDs to include in the PDF (subset of monitored instances). */
+  const [pdfSelectedIds, setPdfSelectedIds] = useState<string[]>([]);
+  const pdfHeaderCheckboxRef = useRef<HTMLInputElement>(null);
 
   const [modal, setModal] = useState<{
     instance: InstanceRow;
@@ -125,7 +135,84 @@ export default function App() {
     return hit?.label ?? `${sec}s`;
   }, [data?.periodSeconds]);
 
+  const filteredInstances = useMemo(() => {
+    if (!data?.instances.length) return [];
+    const q = instanceSearch.trim().toLowerCase();
+    if (!q) return data.instances;
+    return data.instances.filter((i) => i.name.toLowerCase().includes(q));
+  }, [data?.instances, instanceSearch]);
+
+  const monitoredIdsKey = useMemo(
+    () =>
+      data?.instances?.length
+        ? data.instances.map((i) => i.instanceId).join("\0")
+        : "",
+    [data?.instances]
+  );
+
+  useEffect(() => {
+    if (!data?.instances?.length) {
+      setPdfSelectedIds([]);
+      return;
+    }
+    setPdfSelectedIds((prev) => {
+      const allowed = new Set(data.instances.map((i) => i.instanceId));
+      const kept = prev.filter((id) => allowed.has(id));
+      if (kept.length > 0) return kept;
+      return data.instances.map((i) => i.instanceId);
+    });
+  }, [monitoredIdsKey]);
+
+  const pdfAllFilteredSelected = useMemo(
+    () =>
+      filteredInstances.length > 0 &&
+      filteredInstances.every((i) =>
+        pdfSelectedIds.includes(i.instanceId)
+      ),
+    [filteredInstances, pdfSelectedIds]
+  );
+
+  const pdfSomeFilteredSelected = useMemo(
+    () =>
+      filteredInstances.some((i) => pdfSelectedIds.includes(i.instanceId)),
+    [filteredInstances, pdfSelectedIds]
+  );
+
+  useEffect(() => {
+    const el = pdfHeaderCheckboxRef.current;
+    if (!el) return;
+    el.indeterminate =
+      pdfSomeFilteredSelected && !pdfAllFilteredSelected;
+  }, [pdfSomeFilteredSelected, pdfAllFilteredSelected]);
+
+  function togglePdfInstance(instanceId: string) {
+    if (!data?.instances?.length) return;
+    setPdfSelectedIds((prev) => {
+      const sel = new Set(prev);
+      if (sel.has(instanceId)) sel.delete(instanceId);
+      else sel.add(instanceId);
+      return data.instances
+        .map((i) => i.instanceId)
+        .filter((id) => sel.has(id));
+    });
+  }
+
+  function togglePdfAllFiltered() {
+    if (!data?.instances?.length || filteredInstances.length === 0) return;
+    setPdfSelectedIds((prev) => {
+      const sel = new Set(prev);
+      const ids = filteredInstances.map((i) => i.instanceId);
+      const allOn = ids.every((id) => sel.has(id));
+      if (allOn) ids.forEach((id) => sel.delete(id));
+      else ids.forEach((id) => sel.add(id));
+      return data!.instances
+        .map((i) => i.instanceId)
+        .filter((id) => sel.has(id));
+    });
+  }
+
   async function onGenerateReport() {
+    if (pdfSelectedIds.length === 0 || !data?.instances?.length) return;
     setReportBusy(true);
     setError(null);
     try {
@@ -134,11 +221,22 @@ export default function App() {
         statistic,
         period: periodOverride ?? undefined,
         ...(range === "custom" ? customWindowIsoBounds(customRel) : {}),
+        instanceIds: pdfSelectedIds,
       });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = "ec2-utilization-report.pdf";
+      const n = pdfSelectedIds.length;
+      const safe =
+        n === 1
+          ? (
+              data.instances.find((i) => i.instanceId === pdfSelectedIds[0])
+                ?.name ?? pdfSelectedIds[0]
+            )
+              .replace(/[^\w.-]+/g, "_")
+              .slice(0, 80)
+          : `${n}-instances`;
+      a.download = `ec2-utilization-${safe}.pdf`;
       a.click();
       URL.revokeObjectURL(url);
       await clearAwsConfig();
@@ -286,6 +384,18 @@ export default function App() {
                 </select>
               </div>
             )}
+            <div className="toolbar-group">
+              <span className="toolbar-label">Search names</span>
+              <input
+                type="search"
+                className="instance-search-input"
+                placeholder="Filter table…"
+                value={instanceSearch}
+                onChange={(e) => setInstanceSearch(e.target.value)}
+                disabled={!data?.instances?.length}
+                aria-label="Filter instances by name"
+              />
+            </div>
             <div className="toolbar-group utc-hint">UTC timezone</div>
           </div>
           <div className="toolbar-actions">
@@ -299,7 +409,11 @@ export default function App() {
             <button
               type="button"
               className="btn btn-primary"
-              disabled={reportBusy}
+              disabled={
+                reportBusy ||
+                pdfSelectedIds.length === 0 ||
+                !data?.instances?.length
+              }
               onClick={() => void onGenerateReport()}
             >
               {reportBusy ? "Building PDF…" : "Generate PDF report"}
@@ -324,6 +438,25 @@ export default function App() {
             <table className="data">
               <thead>
                 <tr>
+                  <th scope="col" className="cell-pdf">
+                    <div className="th-pdf-select">
+                      <input
+                        ref={pdfHeaderCheckboxRef}
+                        type="checkbox"
+                        checked={
+                          pdfAllFilteredSelected &&
+                          filteredInstances.length > 0
+                        }
+                        disabled={
+                          !data.instances.length ||
+                          filteredInstances.length === 0
+                        }
+                        onChange={() => togglePdfAllFiltered()}
+                        aria-label="Select all visible instances for PDF report"
+                      />
+                      <span className="th-pdf-label">PDF</span>
+                    </div>
+                  </th>
                   <th>Name</th>
                   <th>Instance</th>
                   <th>CPU</th>
@@ -333,12 +466,20 @@ export default function App() {
               <tbody>
                 {data.instances.length === 0 && (
                   <tr>
-                    <td colSpan={4} className="muted">
+                    <td colSpan={5} className="muted">
                       No instances found in this region (or filter).
                     </td>
                   </tr>
                 )}
-                {data.instances.map((inst) => {
+                {data.instances.length > 0 &&
+                  filteredInstances.length === 0 && (
+                    <tr>
+                      <td colSpan={5} className="muted">
+                        No instances match your search.
+                      </td>
+                    </tr>
+                  )}
+                {filteredInstances.map((inst) => {
                   const memLabel = lastMem(
                     data.memory.available,
                     data.memory.series[inst.instanceId]
@@ -351,6 +492,21 @@ export default function App() {
                         setModal({ instance: inst, metric: "cpu" })
                       }
                     >
+                      <td
+                        className="cell-pdf"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={pdfSelectedIds.includes(
+                            inst.instanceId
+                          )}
+                          onChange={() =>
+                            togglePdfInstance(inst.instanceId)
+                          }
+                          aria-label={`Include ${inst.name} in PDF report`}
+                        />
+                      </td>
                       <td>{inst.name}</td>
                       <td className="muted num">{inst.instanceId}</td>
                       <td className="num">

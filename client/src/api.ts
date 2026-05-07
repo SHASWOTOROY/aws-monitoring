@@ -60,6 +60,8 @@ export async function downloadReportPdf(params: {
   period?: number;
   start?: string;
   end?: string;
+  /** When non-empty, the PDF includes only these instances (must match monitored EC2). */
+  instanceIds?: string[];
 }): Promise<Blob> {
   const q = new URLSearchParams();
   q.set("range", params.range);
@@ -67,6 +69,10 @@ export async function downloadReportPdf(params: {
   if (params.period != null) q.set("period", String(params.period));
   if (params.start) q.set("start", params.start);
   if (params.end) q.set("end", params.end);
+  for (const id of params.instanceIds ?? []) {
+    const s = id.trim();
+    if (s) q.append("instanceId", s);
+  }
 
   const res = await fetch(`${apiBase()}/api/report/pdf?${q.toString()}`, {
     cache: "no-store",

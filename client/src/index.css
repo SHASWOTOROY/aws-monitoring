@@ -200,6 +200,20 @@ select {
   color: var(--aws-text);
 }
 
+.instance-search-input {
+  min-width: 10rem;
+  max-width: 16rem;
+  padding: 4px 8px;
+  border: 1px solid var(--aws-border);
+  border-radius: 4px;
+  background: var(--aws-panel);
+  color: var(--aws-text);
+}
+
+.instance-search-input:disabled {
+  opacity: 0.55;
+}
+
 .table-wrap {
   background: var(--aws-panel);
   border: 1px solid var(--aws-border);
@@ -233,12 +247,57 @@ table.data tbody tr {
   cursor: pointer;
 }
 
+table.data tbody tr:nth-child(even) {
+  background: #f6f7f9;
+}
+
 table.data tbody tr:hover {
-  background: #f8f9fa;
+  background: #eef6fc;
 }
 
 table.data tbody tr:last-child td {
   border-bottom: none;
+}
+
+table.data th.cell-pdf,
+table.data td.cell-pdf {
+  width: 3.25rem;
+  text-align: center;
+  vertical-align: middle;
+  padding: 10px 8px;
+  border-right: 1px solid var(--aws-border);
+}
+
+table.data th.cell-pdf {
+  vertical-align: middle;
+}
+
+.th-pdf-select {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.th-pdf-label {
+  font-size: 0.65rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--aws-muted);
+  line-height: 1;
+}
+
+table.data input[type="checkbox"] {
+  width: 1.05rem;
+  height: 1.05rem;
+  accent-color: var(--aws-blue);
+  cursor: pointer;
+}
+
+table.data input[type="checkbox"]:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
 }
 
 .num {

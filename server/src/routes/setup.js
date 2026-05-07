@@ -146,7 +146,32 @@ setupRouter.get("/report/pdf", async (req, res, next) => {
       end
     );
 
-    const instances = await listMonitoredInstances();
+    let instances = await listMonitoredInstances();
+
+    const rawIds = req.query.instanceId;
+    const requestedIds = [];
+    if (rawIds != null && rawIds !== "") {
+      const parts = Array.isArray(rawIds) ? rawIds : [rawIds];
+      for (const p of parts) {
+        const s = String(p).trim();
+        if (s) requestedIds.push(s);
+      }
+    }
+    const uniqueRequested = [...new Set(requestedIds)];
+    if (uniqueRequested.length > 0) {
+      const byId = new Map(instances.map((i) => [i.instanceId, i]));
+      const missing = uniqueRequested.filter((id) => !byId.has(id));
+      if (missing.length > 0) {
+        return res.status(404).json({
+          error:
+            "No matching instance(s) for: " +
+            missing.join(", ") +
+            " (check region and filters).",
+        });
+      }
+      instances = uniqueRequested.map((id) => byId.get(id)).filter(Boolean);
+    }
+
     const ids = instances.map((i) => i.instanceId);
     const instanceHostCandidatesById = Object.fromEntries(
       instances.map((i) => [
@@ -169,17 +194,7 @@ setupRouter.get("/report/pdf", async (req, res, next) => {
       return {
         name: inst.name,
         instanceId: inst.instanceId,
-        instanceType: inst.instanceType ?? "",
         specLabel,
-        state: inst.state ?? "unknown",
-        os: inst.platform ?? "",
-        publicIp: inst.publicIpAddress ?? "",
-        privateIp: inst.privateIpAddress ?? "",
-        privateDns: inst.privateDnsName ?? "",
-        availabilityZone: inst.availabilityZone ?? "",
-        vpcId: inst.vpcId ?? "",
-        subnetId: inst.subnetId ?? "",
-        launchTime: inst.launchTime ?? null,
       };
     });
 

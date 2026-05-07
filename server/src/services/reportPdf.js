@@ -12,17 +12,6 @@ function formatReportDate(d) {
   return `${dd}-${mm}-${d.getFullYear()}`;
 }
 
-function formatUtcDate(d) {
-  if (!(d instanceof Date) || Number.isNaN(d.getTime())) return "N/A";
-  return d.toISOString().replace("T", " ").replace(".000Z", " UTC");
-}
-
-function normalizeOsLabel(osRaw) {
-  const v = String(osRaw || "").trim();
-  if (!v) return "Linux/UNIX";
-  return v.toLowerCase() === "windows" ? "Windows" : "Linux/UNIX";
-}
-
 /** MM/DD in UTC (CloudWatch-style). */
 function formatUtcMmDd(ts) {
   const d = new Date(ts);
@@ -381,17 +370,7 @@ function drawLineChart(
  * @param {Array<{
  *   name: string;
  *   instanceId: string;
- *   instanceType: string;
  *   specLabel: string;
- *   state: string;
- *   os: string;
- *   publicIp: string;
- *   privateIp: string;
- *   privateDns: string;
- *   availabilityZone: string;
- *   vpcId: string;
- *   subnetId: string;
- *   launchTime: Date | null;
  * }>} opts.instances
  * @param {Record<string, Array<{ timestamp: string; value: number | null }>>} opts.cpuById
  * @param {Record<string, Array<{ timestamp: string; value: number | null }>>} opts.memoryById
@@ -484,65 +463,7 @@ export function buildUtilizationReportPdf(opts) {
           ellipsis: true,
           lineBreak: false,
         });
-      doc.moveDown(0.35);
-      doc
-        .font("Helvetica")
-        .fontSize(10)
-        .fillColor("#1b2638")
-        .text(`Instance type: ${inst.instanceType || "N/A"}`, {
-          width: infoW,
-          ellipsis: true,
-          lineBreak: false,
-        })
-        .text(`ID: ${inst.instanceId}`, {
-          width: infoW,
-          ellipsis: true,
-          lineBreak: false,
-        })
-        .text(`OS: ${normalizeOsLabel(inst.os)}`, {
-          width: infoW,
-          ellipsis: true,
-          lineBreak: false,
-        })
-        .text(`State: ${inst.state || "unknown"}`, {
-          width: infoW,
-          ellipsis: true,
-          lineBreak: false,
-        })
-        .text(`Public IPv4 address: ${inst.publicIp || "N/A"}`, {
-          width: infoW,
-          ellipsis: true,
-          lineBreak: false,
-        })
-        .text(`Private IPv4 address: ${inst.privateIp || "N/A"}`, {
-          width: infoW,
-          ellipsis: true,
-          lineBreak: false,
-        })
-        .text(`Private DNS: ${inst.privateDns || "N/A"}`, {
-          width: infoW,
-          ellipsis: true,
-          lineBreak: false,
-        })
-        .text(`Availability Zone: ${inst.availabilityZone || "N/A"}`, {
-          width: infoW,
-          ellipsis: true,
-          lineBreak: false,
-        })
-        .text(
-          `VPC/Subnet: ${inst.vpcId || "N/A"} / ${inst.subnetId || "N/A"}`,
-          {
-            width: infoW,
-            ellipsis: true,
-            lineBreak: false,
-          }
-        )
-        .text(`Launch time: ${formatUtcDate(inst.launchTime)}`, {
-          width: infoW,
-          ellipsis: true,
-          lineBreak: false,
-        });
-      doc.moveDown(0.75);
+      doc.moveDown(0.5);
 
       let y = doc.y;
       const ml = doc.page.margins?.left ?? 50;
